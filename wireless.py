@@ -73,24 +73,23 @@ def hamming748_decode(bitSeq):
     decoded_bits = []
 
     for i in range(0, len(bitSeq), 8):
-    # Calculate the syndrome ≤ = H × y748
         block = bitSeq[i:i+7]
+        parity_bit = bitSeq[i+7]
         syndrome = np.dot(H, block) % 2
-
-        # Check the syndrome
+        
+        # If the syndrome is equal to [0,0,0]
         if np.array_equal(syndrome, [0, 0, 0]):
-            # No errors
             decoded_bits.extend(block[:4])
-        elif np.count_nonzero(syndrome) == 1:
-            # Single-bit error
-            error_index = np.where(syndrome == 1)[0][0]
-            print(error_index)
-            # Correct the error by flipping the corresponding bit
-            #bitSeq[error_index] ^= 1
+        # If the syndrome is not equal to [0,0,0] but the parity bit is good
+        elif (np.sum(block) + 1) % 2 == parity_bit:
+            # Get the index of the error
+            error_index = int(syndrome[2]*4 + syndrome[1]*2 + syndrome[0]) - 1
 
+            # Correct the error by flipping the corresponding bit
             block[error_index] = 1 if block[error_index] == 0 else 0
 
             decoded_bits.extend(block[:4])
+        # Two errors detected then return None
         else:
             return None
 
