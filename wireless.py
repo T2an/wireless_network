@@ -95,20 +95,32 @@ def hamming748_decode(bitSeq):
 
     return decoded_bits
 
+def bin2dec(nb):
+    """
+    Transform a binary list to an integer
+    """
+    n = "0b"
+    for b in nb:
+        n = n + str(int(b))
+    return int(n, 2)
 
 
+# Enlève les deux canaux de synchronisation
 matrice_without_sync=combined_matrix[2:, :]
 print("La taille de la nouvelle matrice est :", matrice_without_sync.shape)
+
+# Garde uniquement la ligne contenant le canal de diffusion
 matrice_PBCH=matrice_without_sync[0, :]
 print("La taille de la nouvelle matrice est :", matrice_PBCH.shape)
-#print(matrice_PBCH)
 
-# Tester la fonction avec un exemple
-bitSeq = bpsk_demod(matrice_PBCH.real)
-   # print("Séquence binaire après la démodulation BPSK :", bitSeq)
+# Garde uniquement les éléments de 1 à 48 contenant les informations utilisateur
+matrice_PBCH_user=matrice_PBCH[1:49]
 
-matrice_PBCH_user=matrice_PBCH[:48]
 matrice_PBCH_user_demod=bpsk_demod(matrice_PBCH_user.real)
-print(hamming748_decode(matrice_PBCH_user_demod))
+bitDec = hamming748_decode(matrice_PBCH_user_demod)
+print("Flux de bits après le décodage Hamming748 des informations PBCH : ", bitDec)
+
+print("Cell ident : ", bin2dec(bitDec[0:18]))
+print("Nb Users : ", bin2dec(bitDec[18:24]))
 
 
