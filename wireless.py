@@ -126,6 +126,22 @@ def getPBCHU(matrice_PBCH, ident):
                 PBCHU = {"userIdent": userIdent, "pdcchuMCS": pdcchuMCS, "pdcchuSymbStart": pdcchuSymbStart, "pdcchuRbStart": pdcchuRbStart, "pdcchuHARQ": pdcchuHARQ}
                 return PBCHU
 
+def qpsk_demod(matrice):
+    result = []
+    for complex in matrice:
+        result.append(1 if complex.real >= 0 else 0)
+        result.append(1 if complex.imag >= 0 else 0)
+
+    return result
+
+def decodePDCCHU(matrice, mcsFlag):
+    # BPSK
+    if mcsFlag == 0:
+        return bpsk_demod(matrice)
+    # QPSK
+    elif mcsFlag == 2:
+        return qpsk_demod(matrice)
+
 
 # Enlève les deux canaux de synchronisation
 matrice_without_sync=combined_matrix[2:, :]
@@ -149,3 +165,4 @@ print("Nb Users : ", bin2dec(bitDec[18:24]))
 vecteur_PBCH = matrice_without_sync.flatten()
 PBCHU = getPBCHU(matrice_PBCH=vecteur_PBCH[48:48*19], ident=11)
 print(PBCHU)
+
