@@ -12,8 +12,8 @@ import sk_dsp_comm.fec_conv as fec
 
 my_data = np.genfromtxt('tfMatrix.csv', delimiter=";")
 mat_complex = my_data[:,0::2] +1j*my_data[:,1::2]
-first_part = mat_complex[:, 0:313]
-second_part = mat_complex[:, 713:1024]
+first_part = mat_complex[:, 1:313]
+second_part = mat_complex[:, 712:1024]
 
 # Regrouper les deux matrices horizontalement
 combined_matrix = np.hstack((first_part, second_part))
@@ -104,6 +104,28 @@ def bin2dec(nb):
         n = n + str(int(b))
     return int(n, 2)
 
+def getPBCHU(matrice_PBCH, ident):
+    for i in range(0, len(matrice_PBCH), 48):
+        matrice_PBCH_tmp = matrice_PBCH[i:i+48]
+        matrice_PBCH_demod = bpsk_demod(matrice_PBCH_tmp.real)
+        bitDec = hamming748_decode(matrice_PBCH_demod)
+        if bitDec != None:
+            userIdent = bin2dec(bitDec[0:8])
+            pdcchuMCS = bin2dec(bitDec[8:10])
+            pdcchuSymbStart = bin2dec(bitDec[10:14])
+            pdcchuRbStart = bin2dec(bitDec[14:20])
+            pdcchuHARQ = bin2dec(bitDec[20:24])
+
+            if ident == userIdent:
+                # print("User ident : ", userIdent)
+                # print("MCS of PDCCHU : ", pdcchuMCS)
+                # print("Symb start of PDCCHU : ", pdcchuSymbStart)
+                # print("RB start of PDCCHU : ", pdcchuRbStart)
+                # print("HARQ of PDCCHU : ", pdcchuHARQ)
+                # print("--------------------------------------")
+                PBCHU = {"userIdent": userIdent, "pdcchuMCS": pdcchuMCS, "pdcchuSymbStart": pdcchuSymbStart, "pdcchuRbStart": pdcchuRbStart, "pdcchuHARQ": pdcchuHARQ}
+                return PBCHU
+
 
 # Enlève les deux canaux de synchronisation
 matrice_without_sync=combined_matrix[2:, :]
@@ -114,7 +136,7 @@ matrice_PBCH=matrice_without_sync[0, :]
 print("La taille de la nouvelle matrice est :", matrice_PBCH.shape)
 
 # Garde uniquement les éléments de 1 à 48 contenant les informations utilisateur
-matrice_PBCH_user=matrice_PBCH[1:49]
+matrice_PBCH_user=matrice_PBCH[0:48]
 
 matrice_PBCH_user_demod=bpsk_demod(matrice_PBCH_user.real)
 bitDec = hamming748_decode(matrice_PBCH_user_demod)
@@ -123,4 +145,7 @@ print("Flux de bits après le décodage Hamming748 des informations PBCH : ", bi
 print("Cell ident : ", bin2dec(bitDec[0:18]))
 print("Nb Users : ", bin2dec(bitDec[18:24]))
 
-
+# TODO : Change the user ident
+vecteur_PBCH = matrice_without_sync.flatten()
+PBCHU = getPBCHU(matrice_PBCH=vecteur_PBCH[48:48*19], ident=11)
+print(PBCHU)
