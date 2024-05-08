@@ -1,5 +1,6 @@
-
 from wireless import * 
+from qam16_demod import *
+
 def test_bpsk():
     # BPSK decoding test
     assert np.array_equal(bpsk_demod(np.array([1.0+1j*0.0,1.0+1j*0.0,1.0+1j*0.0,-1.0+1j*0.0])), [1, 1, 1, 0])

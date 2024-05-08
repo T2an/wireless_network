@@ -9,6 +9,8 @@ import pytest
 # Module for convolutionnal decoder
 import sk_dsp_comm.fec_conv as fec
 
+from qam16_demod import *
+from crc import *
 
 my_data = np.genfromtxt('tfMatrix.csv', delimiter=";")
 mat_complex = my_data[:,0::2] +1j*my_data[:,1::2]
@@ -117,13 +119,7 @@ def getPBCHU(matrice_PBCH, ident):
             pdcchuHARQ = bin2dec(bitDec[20:24])
 
             if ident == userIdent:
-                # print("User ident : ", userIdent)
-                # print("MCS of PDCCHU : ", pdcchuMCS)
-                # print("Symb start of PDCCHU : ", pdcchuSymbStart)
-                # print("RB start of PDCCHU : ", pdcchuRbStart)
-                # print("HARQ of PDCCHU : ", pdcchuHARQ)
-                # print("--------------------------------------")
-                PBCHU = {"userIdent": userIdent, "pdcchuMCS": pdcchuMCS, "pdcchuSymbStart": pdcchuSymbStart, "pdcchuRbStart": pdcchuRbStart, "pdcchuHARQ": pdcchuHARQ}
+                PBCHU = {"userIdent": userIdent, "pdcchuMCS": pdcchuMCS, "pdcchuSymbStart": pdcchuSymbStart, "pdcchuRbStart": pdcchuRbStart, "pdcchuHARQ": pdcchuHARQ, "bits": matrice_PBCH_tmp}
                 return PBCHU
 
 def qpsk_demod(matrice):
@@ -135,13 +131,15 @@ def qpsk_demod(matrice):
     return result
 
 def decodePDCCHU(matrice, mcsFlag):
+    bitDec = []
     # BPSK
     if mcsFlag == 0:
-        return bpsk_demod(matrice)
+        bitDec = bpsk_demod(matrice.real)
     # QPSK
     elif mcsFlag == 2:
-        return qpsk_demod(matrice)
-
+        bitDec = qpsk_demod(matrice)
+    
+    return hamming748_decode(bitDec)
 
 # Enlève les deux canaux de synchronisation
 matrice_without_sync=combined_matrix[2:, :]
@@ -166,3 +164,53 @@ vecteur_PBCH = matrice_without_sync.flatten()
 PBCHU = getPBCHU(matrice_PBCH=vecteur_PBCH[48:48*19], ident=11)
 print(PBCHU)
 
+# TODO : Extract the QAM sequence of the appropriate length to recover the PDCCHU at the correct position in the TF grid
+# Il faut trouver une séquence de 72 bits
+qamSequence = []
+
+# TODO : Decode the sequence using the correct format 
+# Il faut trouver une séquence de 36 bits après décodage
+qamSequecenceDecode = decodePDCCHU(qamSequence, PBCHU["pdcchuMCS"])
+print(qamSequecenceDecode)
+
+# TODO : Décommenter quand qamSequence aura été trouvée
+# Figure 1.12: PDCCHU informations page 16
+#userIdent = bin2dec(qamSequecenceDecode[0:8])
+#pdschuMCS = bin2dec(qamSequecenceDecode[8:14])
+#pdschuSymbStart = bin2dec(qamSequecenceDecode[14:18])
+#pdschuRbStart = bin2dec(qamSequecenceDecode[18:24])
+#pdschuRbSize = bin2dec(qamSequecenceDecode[24:34])
+#crcFlag = bin2dec(qamSequecenceDecode[34:36])
+
+#PDSCH = {"userIdent": userIdent, "pdschuMCS": pdschuMCS, "pdschuSymbStart": pdschuSymbStart, "pdschuRbStart": pdschuRbStart, "pdschuRbSize": pdschuRbSize, "crcFlag": crcFlag}
+
+
+#We provide the 16-QAM decoding function. Check that the test test_qam16.m passes.
+# pytest tests_modulation.py::test_qam16
+
+def pdsch_demod(qamSeq, mcs):
+    if mcs % 5 == 0:
+        return bpsk_demod(qamSeq)
+    elif (mcs - 1) % 5 == 0:
+        return qpsk_demod(qamSeq)
+    elif (mcs - 2) % 5 == 0:
+        return qam16_demod(qamSeq)
+    else:
+        raise NotImplementedError("Higher modulation are not supported")
+
+def pdsch_fec(qamSeq, mcs):
+    # Valeurs de MCS de constellation BPSK, QPSK et 16-QAM correspondant à un codage Hamming748 (supporté dans le projet)
+    if mcs in [25,26,17]:
+        return hamming748_decode(qamSeq)
+    else:
+        raise NotImplementedError("Hamming124, Hamming128 and Hamming2416 are not supported")
+
+def pdsch_crc(qamSeq, crcSize):
+    gx = get_crc_poly(crcSize)
+    crc_check = crc_decode(qamSeq, gx)
+
+    # Return true if the CRC is correct
+    return crc_check == 1
+
+
+    

@@ -1,3 +1,6 @@
+import math
+import numpy as np
+
 def qam16_demod(input_sequence):
     # %FIXME Scaling vector 
     input_sequence = input_sequence * math.sqrt(2/3*(16-1))
