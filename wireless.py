@@ -114,8 +114,7 @@ def getPBCHU(matrice_PBCH, ident):
         if bitDec != None:
             userIdent = bin2dec(bitDec[0:8])
             pdcchuMCS = bin2dec(bitDec[8:10])
-            # - 2 parce qu'on a enlevé les deux canaux de synchronisation
-            pdcchuSymbStart = bin2dec(bitDec[10:14]) - 2
+            pdcchuSymbStart = bin2dec(bitDec[10:14])
             pdcchuRbStart = bin2dec(bitDec[14:20])
             pdcchuHARQ = bin2dec(bitDec[20:24])
 
@@ -140,6 +139,8 @@ def decodePDCCHU(matrice, mcsFlag):
     elif mcsFlag == 2:
         bitDec = qpsk_demod(matrice)
     
+    print(bitDec)
+
     return hamming748_decode(bitDec)
 
 # Enlève les deux canaux de synchronisation
@@ -167,27 +168,26 @@ print(PBCHU)
 
 # TODO : Extract the QAM sequence of the appropriate length to recover the PDCCHU at the correct position in the TF grid
 # Il faut trouver une séquence de 72 bits
-qamSequence1 = matrice_without_sync[PBCHU["pdcchuSymbStart"]][PBCHU["pdcchuRbStart"]*12-12:PBCHU["pdcchuRbStart"]*12-12+72]
-# TODO : Faire cas générique si pas 72 bits sur la même colonne pdcchuSymbStart
-qamSequence2 = matrice_without_sync[PBCHU["pdcchuSymbStart"]+1][0:60]
+#qamSequence1 = matrice_without_sync[PBCHU["pdcchuSymbStart"]][PBCHU["pdcchuRbStart"]*12-12:PBCHU["pdcchuRbStart"]*12-12+72]
+#qamSequence1 = matrice_without_sync[PBCHU["pdcchuSymbStart"]+1][PBCHU["pdcchuRbStart"]*12-12:60]
 
-qamSequence = np.concatenate((qamSequence1, qamSequence2))
-# TODO : Decode the sequence using the correct format 
-# Il faut trouver une séquence de 36 bits après décodage
-qamSequecenceDecode = decodePDCCHU(qamSequence, 0)
+qam_size = 72 if PBCHU["pdcchuMCS"] == 0 else 36
+
+qamSequence = vecteur_PBCH[(PBCHU["pdcchuSymbStart"]-3) * 624 + (PBCHU["pdcchuRbStart"] -1) * 12:(PBCHU["pdcchuSymbStart"]-3) * 624 + (PBCHU["pdcchuRbStart"]- 1) * 12 + qam_size]
+
+qamSequecenceDecode = decodePDCCHU(qamSequence, PBCHU["pdcchuMCS"])
 print(qamSequecenceDecode)
 
-# TODO : Décommenter quand qamSequence aura été trouvée
 # Figure 1.12: PDCCHU informations page 16
-# userIdent = bin2dec(qamSequecenceDecode[0:8])
-# pdschuMCS = bin2dec(qamSequecenceDecode[8:14])
-# pdschuSymbStart = bin2dec(qamSequecenceDecode[14:18])
-# pdschuRbStart = bin2dec(qamSequecenceDecode[18:24])
-# pdschuRbSize = bin2dec(qamSequecenceDecode[24:34])
-# crcFlag = bin2dec(qamSequecenceDecode[34:36])
+userIdent = bin2dec(qamSequecenceDecode[0:8])
+pdschuMCS = bin2dec(qamSequecenceDecode[8:14])
+pdschuSymbStart = bin2dec(qamSequecenceDecode[14:18])
+pdschuRbStart = bin2dec(qamSequecenceDecode[18:24])
+pdschuRbSize = bin2dec(qamSequecenceDecode[24:34])
+crcFlag = bin2dec(qamSequecenceDecode[34:36])
 
-# PDSCH = {"userIdent": userIdent, "pdschuMCS": pdschuMCS, "pdschuSymbStart": pdschuSymbStart, "pdschuRbStart": pdschuRbStart, "pdschuRbSize": pdschuRbSize, "crcFlag": crcFlag}
-# print(PDSCH)
+PDSCH = {"userIdent": userIdent, "pdschuMCS": pdschuMCS, "pdschuSymbStart": pdschuSymbStart, "pdschuRbStart": pdschuRbStart, "pdschuRbSize": pdschuRbSize, "crcFlag": crcFlag}
+print(PDSCH)
 
 #We provide the 16-QAM decoding function. Check that the test test_qam16.m passes.
 # pytest tests_modulation.py::test_qam16
