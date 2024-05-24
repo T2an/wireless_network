@@ -12,7 +12,7 @@ from qam16_demod import *
 from crc import *
 from binary_transformation import *
 
-my_data = np.genfromtxt('tfMatrix_2.csv', delimiter=";")
+my_data = np.genfromtxt('tfMatrix_3.csv', delimiter=";")
 mat_complex = my_data[:,0::2] +1j*my_data[:,1::2]
 first_part = mat_complex[:, 1:313]
 second_part = mat_complex[:, 712:1024]
@@ -163,7 +163,9 @@ print("Nb Users : ", nbUsers)
 vecteur_PBCH = matrice_without_sync.flatten()
 PBCHU = getPBCHU(matrice_PBCH=vecteur_PBCH[48:48* (nbUsers + 1)], ident=11)
 
-print(PBCHU)
+if PBCHU == None:
+    raise("Le PBCHU associé à l'identification de l'utilisateur n'a pas été trouvé !")
+
 qam_size = 72 if PBCHU["pdcchuMCS"] == 0 else 36
 qamSequence = vecteur_PBCH[(PBCHU["pdcchuSymbStart"]-3) * 624 + (PBCHU["pdcchuRbStart"] -1) * 12:(PBCHU["pdcchuSymbStart"]-3) * 624 + (PBCHU["pdcchuRbStart"]- 1) * 12 + qam_size]
 
@@ -184,17 +186,29 @@ print(PDSCH)
 # pytest tests_modulation.py::test_qam16
 
 def pdsch_demod(qamSeq, mcs):
+    pdschSeqDemod = []
     if mcs % 5 == 0:
-        return bpsk_demod(qamSeq)
+        pdschSeqDemod = bpsk_demod(qamSeq)
     elif (mcs - 1) % 5 == 0:
-        return qpsk_demod(qamSeq)
+        pdschSeqDemod = qpsk_demod(qamSeq)
     elif (mcs - 2) % 5 == 0:
-        return qam16_demod(qamSeq)
+        pdschSeqDemod = qam16_demod(qamSeq)
+    
+    cc1 = fec.FECConv(("1011011","1111001"),6)
+    return cc1.viterbi_decoder(np.array(pdschSeqDemod).astype(int),"hard")
 
 def pdsch_fec(qamSeq, mcs):
     # Valeurs de MCS de constellation BPSK, QPSK et 16-QAM correspondant à un codage Hamming748 (supporté dans le projet)
     if mcs in [25, 26, 27]:
-        return hamming748_decode(pdsch_demod(qamSeq, mcs))
+        pdschSeqDemod = []
+        if mcs == 25:
+            pdschSeqDemod = bpsk_demod(qamSeq)
+        elif mcs == 26:
+            pdschSeqDemod = qpsk_demod(qamSeq)
+        elif mcs == 27:
+            pdschSeqDemod = qam16_demod(qamSeq)
+        
+        return hamming748_decode(pdschSeqDemod)
     else:
         raise NotImplementedError("Hamming124, Hamming128 and Hamming2416 are not supported")
 
@@ -202,7 +216,7 @@ def pdsch_fec(qamSeq, mcs):
 # pytest crc.py::test_crcGen crc.py::test_crcDecode
 
 def pdsch_crc(qamSeq, crcFlag):
-    crcSize = crcFlag + 1 * 8
+    crcSize = (crcFlag + 1) * 8
     gx = get_crc_poly(crcSize)
     crc_check = crc_decode(qamSeq, gx)
 
@@ -213,16 +227,15 @@ def pdsch_crc(qamSeq, crcFlag):
 pdschSeq = vecteur_PBCH[(PDSCH["pdschuSymbStart"]-3) * 624 + (PDSCH["pdschuRbStart"] -1) * 12:(PDSCH["pdschuRbStart"]-3) * 624 + (PDSCH["pdschuRbStart"]- 1) * 12 + PDSCH["pdschuRbSize"] * 12]
 
 pdschSeqDemod = pdsch_demod(pdschSeq, PDSCH["pdschuMCS"]) if PDSCH["pdschuMCS"] <= 19 else pdsch_fec(pdschSeq, PDSCH["pdschuMCS"])
-    
-cc1 = fec.FECConv(("1011011","1111001"),6)
-dec = cc1.viterbi_decoder(np.array(pdschSeqDemod).astype(int),"hard")
-crc = pdsch_crc(dec, PDSCH["crcFlag"])
+crc = pdsch_crc(pdschSeqDemod, PDSCH["crcFlag"])
 
 if crc:
     # Assuming the message decoding from QPSK or QAM16 is qamSeq
     # Convert the binary sequence into bytes
-    mess = bitToByte(dec)
+    mess = bitToByte(pdschSeqDemod)
     # Bytes are "encrypted", uncrypt them
     real_mess = cesarDecode(11,mess); # USER is your user group
     final_mess = toASCII(real_mess)
     print(final_mess)
+else:
+    print("Le CRC est faux, on ne peut donc pas décoder le message")
