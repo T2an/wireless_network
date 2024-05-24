@@ -3,7 +3,6 @@ import numpy as np
 import math
 # Module to display T/F matrix
 import matplotlib.pyplot as plt
-from matplotlib import ticker, cm
 # Module for Unit testing
 import pytest
 # Module for convolutionnal decoder
@@ -13,7 +12,7 @@ from qam16_demod import *
 from crc import *
 from binary_transformation import *
 
-my_data = np.genfromtxt('tfMatrix.csv', delimiter=";")
+my_data = np.genfromtxt('tfMatrix_2.csv', delimiter=";")
 mat_complex = my_data[:,0::2] +1j*my_data[:,1::2]
 first_part = mat_complex[:, 1:313]
 second_part = mat_complex[:, 712:1024]
@@ -28,8 +27,7 @@ def powerDistributionGraph(Z):
     """
     Z=np.abs(Z)
     fig, ax = plt.subplots()
-    cs = ax.contourf(np.linspace(0, len(Z[0]), len(Z[0])), np.linspace(0,
-    len(Z), len(Z)), Z)
+    cs = ax.contourf(np.linspace(0, len(Z[0]), len(Z[0])), np.linspace(0,len(Z), len(Z)), Z)
     cbar = fig.colorbar(cs)
     ax.set_title('Distribution de la puissance de la matrice temps fréquence')
     ax.set_xlabel('Fréquence (sous-porteuses)')
@@ -186,9 +184,6 @@ print(PDSCH)
 # pytest tests_modulation.py::test_qam16
 
 def pdsch_demod(qamSeq, mcs):
-    if (mcs > 19):
-        raise NotImplementedError("Higher modulation are not supported")
-
     if mcs % 5 == 0:
         return bpsk_demod(qamSeq)
     elif (mcs - 1) % 5 == 0:
@@ -199,7 +194,7 @@ def pdsch_demod(qamSeq, mcs):
 def pdsch_fec(qamSeq, mcs):
     # Valeurs de MCS de constellation BPSK, QPSK et 16-QAM correspondant à un codage Hamming748 (supporté dans le projet)
     if mcs in [25, 26, 27]:
-        return hamming748_decode(qamSeq)
+        return hamming748_decode(pdsch_demod(qamSeq, mcs))
     else:
         raise NotImplementedError("Hamming124, Hamming128 and Hamming2416 are not supported")
 
@@ -217,7 +212,7 @@ def pdsch_crc(qamSeq, crcFlag):
 
 pdschSeq = vecteur_PBCH[(PDSCH["pdschuSymbStart"]-3) * 624 + (PDSCH["pdschuRbStart"] -1) * 12:(PDSCH["pdschuRbStart"]-3) * 624 + (PDSCH["pdschuRbStart"]- 1) * 12 + PDSCH["pdschuRbSize"] * 12]
 
-pdschSeqDemod = pdsch_demod(pdschSeq, PDSCH["pdschuMCS"])
+pdschSeqDemod = pdsch_demod(pdschSeq, PDSCH["pdschuMCS"]) if PDSCH["pdschuMCS"] <= 19 else pdsch_fec(pdschSeq, PDSCH["pdschuMCS"])
     
 cc1 = fec.FECConv(("1011011","1111001"),6)
 dec = cc1.viterbi_decoder(np.array(pdschSeqDemod).astype(int),"hard")
